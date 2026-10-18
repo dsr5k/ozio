@@ -1,0 +1,7 @@
+{
+  "name": "Ozio — AI-Powered Financial Operations Platform",
+  "description": "Unified AI financial operations and invoice automation SaaS for Indian businesses with automated document extraction, GST compliance, purchase bills, and vendor/customer management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
