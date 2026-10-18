@@ -55,14 +55,44 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <p className="text-xs text-slate-500 mt-0.5">Canonical transaction reporting derived strictly from database ledgers</p>
         </div>
 
-        <a
-          href="/api/integrations/export/csv"
-          download="ozio-financial-report.csv"
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export Complete Financial Register</span>
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/api/integrations/export/csv"
+            download="ozio-sales-register.csv"
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+            title="Download detailed sales register with line tax breakdown"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Sales CSV</span>
+          </a>
+          <a
+            href="/api/integrations/export/ledger"
+            download="ozio-general-ledger.csv"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+            title="Download full multi-party double-entry general ledger"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>General Ledger CSV</span>
+          </a>
+          <a
+            href="/api/integrations/export/gstr1"
+            download="ozio-gstr1-b2b.csv"
+            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+            title="Download official GST portal compliant GSTR-1 B2B CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>GSTR-1 CSV</span>
+          </a>
+          <a
+            href="/api/integrations/export/tally-xml"
+            download="ozio-tally-export.xml"
+            className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all"
+            title="Download Tally Prime compatible XML vouchers"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Tally XML</span>
+          </a>
+        </div>
       </div>
 
       {/* P&L Snapshot */}

@@ -307,6 +307,14 @@ async function startServer() {
     }
   });
 
+  app.get('/api/documents', (req: Request, res: Response) => {
+    try {
+      res.json(db.getStoredDocuments());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // GST & Tax Intelligence
   app.get('/api/gst/summary', (req: Request, res: Response) => {
     try {
@@ -316,10 +324,112 @@ async function startServer() {
     }
   });
 
-  // Integrations & Exports (Tally XML, CSV)
+  // Purchase Orders
+  app.get('/api/purchase-orders', (req: Request, res: Response) => {
+    try {
+      res.json(db.getPurchaseOrders());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/purchase-orders', (req: Request, res: Response) => {
+    try {
+      const { items, ...poData } = req.body;
+      if (!items || !items.length) {
+        return res.status(400).json({ error: 'Purchase Order must have at least one line item' });
+      }
+      const created = db.createPurchaseOrderWithItems(poData, items);
+      res.status(201).json(created);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/purchase-orders/:id/status', (req: Request, res: Response) => {
+    try {
+      const updated = db.updatePurchaseOrderStatus(req.params.id, req.body.status);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/purchase-orders/:id', (req: Request, res: Response) => {
+    try {
+      db.deletePurchaseOrder(req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Payments Ledger
+  app.get('/api/payments', (req: Request, res: Response) => {
+    try {
+      res.json(db.getPayments());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payments', (req: Request, res: Response) => {
+    try {
+      const created = db.createPayment(req.body);
+      res.status(201).json(created);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/payments/:id/reconcile', (req: Request, res: Response) => {
+    try {
+      const reconciled = db.reconcilePayment(req.params.id);
+      res.json(reconciled);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/payments/:id', (req: Request, res: Response) => {
+    try {
+      db.deletePayment(req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Approvals Inbox
+  app.get('/api/approvals', (req: Request, res: Response) => {
+    try {
+      res.json(db.getApprovals());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/approvals/action', (req: Request, res: Response) => {
+    try {
+      const { action, entityType, entityId, reason } = req.body;
+      if (action === 'approve') {
+        db.approveRequest(entityType, entityId);
+        res.json({ success: true, message: 'Item approved successfully.' });
+      } else {
+        db.rejectRequest(entityType, entityId, reason || 'Rejected by finance approver');
+        res.json({ success: true, message: 'Item rejected with reason logged.' });
+      }
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Detailed Excel/CSV Exports
   app.get('/api/integrations/export/:format', (req: Request, res: Response) => {
     const format = req.params.format;
     const invoices = db.getInvoices();
+    const bills = db.getPurchaseBills();
+    const payments = db.getPayments();
 
     if (format === 'tally-xml') {
       res.setHeader('Content-Type', 'application/xml');
@@ -357,7 +467,35 @@ async function startServer() {
       return res.send(xml);
     }
 
-    // Default CSV
+    if (format === 'gstr1') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="ozio-gstr1-b2b-export.csv"');
+      const header = 'GSTIN/UIN of Recipient,Receiver Name,Invoice Number,Invoice Date,Invoice Value,Place Of Supply,Reverse Charge,Invoice Type,E-Commerce GSTIN,Rate,Taxable Value,Cess Amount\n';
+      const rows = invoices.filter((i) => i.status !== 'draft').map((inv) =>
+        `"${inv.customer?.gstin || 'URP'}","${inv.customer?.company_name || inv.customer?.name}","${inv.invoice_number}","${inv.issue_date}",${inv.total_amount},"${inv.customer?.state_code || '27'}-${inv.customer?.state || 'Maharashtra'}","N","Regular B2B","",18,${inv.taxable_amount},0.00`
+      ).join('\n');
+      return res.send(header + rows);
+    }
+
+    if (format === 'ledger') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="ozio-general-ledger.csv"');
+      const header = 'Transaction Date,Voucher Type,Voucher Ref,Party / Account,Debit (Dr),Credit (Cr),Balance Indicator,Status\n';
+      
+      const salesEntries = invoices.map((inv) =>
+        `"${inv.issue_date}","Sales Invoice","${inv.invoice_number}","${inv.customer?.company_name || inv.customer?.name}",${inv.total_amount},0.00,"Receivable","${inv.status}"`
+      );
+      const billEntries = bills.map((b) =>
+        `"${b.bill_date}","Purchase Bill","${b.bill_number}","${b.supplier?.company_name || b.supplier?.name}",0.00,${b.total_amount},"Payable","${b.status}"`
+      );
+      const paymentEntries = payments.map((p) =>
+        `"${p.payment_date}","${p.type === 'inflow' ? 'Receipt (Inflow)' : 'Payment (Outflow)'}","${p.reference_number}","${p.counterparty_name}",${p.type === 'inflow' ? '0.00' : p.amount},${p.type === 'inflow' ? p.amount : '0.00'},"Settled","${p.status}"`
+      );
+
+      return res.send(header + [...salesEntries, ...billEntries, ...paymentEntries].join('\n'));
+    }
+
+    // Default Sales CSV
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="ozio-sales-register.csv"');
     const header = 'Invoice Number,Date,Due Date,Customer Name,Customer GSTIN,Taxable Amount,CGST,SGST,IGST,Total Amount,Status\n';

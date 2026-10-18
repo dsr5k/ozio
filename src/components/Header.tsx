@@ -15,9 +15,9 @@ const TAB_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
     title: 'Financial Operations Command',
     subtitle: 'Unified real-time financial metrics, receivables, cash flow & GST summaries',
   },
-  'ai-documents': {
-    title: 'AI Document Ingestion & Verification',
-    subtitle: 'Multimodal OCR, automated field extraction, duplicate checking & financial posting',
+  documents: {
+    title: 'Invoices & Financial Documents Intelligence',
+    subtitle: 'Multimodal OCR, automated field extraction, duplicate checking & ledger posting',
   },
   invoices: {
     title: 'Sales Invoicing & Receivables',
@@ -38,6 +38,18 @@ const TAB_TITLES: Record<NavTab, { title: string; subtitle: string }> = {
   expenses: {
     title: 'Expense Management',
     subtitle: 'Categorized operational spending, receipt attachments & reimbursable client costs',
+  },
+  'purchase-orders': {
+    title: 'Purchase Orders & Commitments',
+    subtitle: 'Supplier procurement orders, line-item GST calculations & approval authorizations',
+  },
+  approvals: {
+    title: 'Approvals & Dual-Signoff Inbox',
+    subtitle: 'High-value bill dual signatures, low-confidence document validation & procurement signoffs',
+  },
+  payments: {
+    title: 'Payments & Reconciliation Ledger',
+    subtitle: 'Customer remittance inflows, vendor disbursements, payment matching & bank reconciliation',
   },
   gst: {
     title: 'GST & Tax Intelligence',

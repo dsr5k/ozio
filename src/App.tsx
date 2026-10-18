@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar, NavTab } from './components/Sidebar.tsx';
 import { Header } from './components/Header.tsx';
 import { DashboardView } from './components/DashboardView.tsx';
-import { AIDocumentCenter } from './components/AIDocumentCenter.tsx';
+import { DocumentsView } from './components/DocumentsView.tsx';
 import { InvoicesView } from './components/InvoicesView.tsx';
 import { PurchaseBillsView } from './components/PurchaseBillsView.tsx';
 import { SuppliersView } from './components/SuppliersView.tsx';
 import { CustomersView } from './components/CustomersView.tsx';
 import { ExpensesView } from './components/ExpensesView.tsx';
+import { PurchaseOrdersView } from './components/PurchaseOrdersView.tsx';
+import { ApprovalsView } from './components/ApprovalsView.tsx';
+import { PaymentsView } from './components/PaymentsView.tsx';
 import { GSTIntelligenceView } from './components/GSTIntelligenceView.tsx';
 import { ReportsView } from './components/ReportsView.tsx';
 import { AutomationsView } from './components/AutomationsView.tsx';
@@ -22,6 +25,10 @@ import {
   PurchaseBill,
   Expense,
   DocumentExtraction,
+  StoredDocument,
+  PurchaseOrder,
+  PaymentRecord,
+  ApprovalRequest,
   DashboardStats,
   GSTSummary,
 } from './types/index.ts';
@@ -36,7 +43,11 @@ export default function App() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [purchaseBills, setPurchaseBills] = useState<PurchaseBill[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [documents, setDocuments] = useState<StoredDocument[]>([]);
   const [extractions, setExtractions] = useState<DocumentExtraction[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [gstSummary, setGstSummary] = useState<GSTSummary | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
@@ -52,7 +63,11 @@ export default function App() {
         invoicesData,
         billsData,
         expensesData,
+        docsData,
         extractionsData,
+        poData,
+        paymentsData,
+        approvalsData,
         gstData,
       ] = await Promise.all([
         api.getProfile(),
@@ -62,7 +77,11 @@ export default function App() {
         api.getInvoices(),
         api.getPurchaseBills(),
         api.getExpenses(),
+        api.getDocuments(),
         api.getExtractions(),
+        api.getPurchaseOrders(),
+        api.getPayments(),
+        api.getApprovals(),
         api.getGSTSummary(),
       ]);
 
@@ -73,7 +92,11 @@ export default function App() {
       setInvoices(invoicesData);
       setPurchaseBills(billsData);
       setExpenses(expensesData);
+      setDocuments(docsData);
       setExtractions(extractionsData);
+      setPurchaseOrders(poData);
+      setPayments(paymentsData);
+      setApprovals(approvalsData);
       setGstSummary(gstData);
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -87,7 +110,8 @@ export default function App() {
   }, [fetchAllData]);
 
   const pendingReviewsCount = extractions.filter((e) => e.status === 'pending_review').length;
-  const unpaidInvoicesCount = invoices.filter((i) => i.status === 'unpaid' || i.status === 'sent').length;
+  const pendingApprovalsCount = approvals.filter((a) => a.status === 'pending').length;
+  const unpaidCount = invoices.filter((i) => i.status === 'unpaid' || i.status === 'sent').length;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800 antialiased overflow-hidden selection:bg-blue-100 selection:text-blue-900">
@@ -96,7 +120,8 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
         pendingReviewsCount={pendingReviewsCount}
-        unpaidInvoicesCount={unpaidInvoicesCount}
+        pendingApprovalsCount={pendingApprovalsCount}
+        unpaidCount={unpaidCount}
         profile={profile}
       />
 
@@ -105,7 +130,7 @@ export default function App() {
         {/* Top Header */}
         <Header
           currentTab={currentTab}
-          onOpenUpload={() => setCurrentTab('ai-documents')}
+          onOpenUpload={() => setCurrentTab('documents')}
           onOpenCreateInvoice={() => {
             setCurrentTab('invoices');
             setCreateInvoiceOpen(true);
@@ -122,7 +147,7 @@ export default function App() {
               invoices={invoices}
               purchaseBills={purchaseBills}
               onNavigate={setCurrentTab}
-              onOpenUpload={() => setCurrentTab('ai-documents')}
+              onOpenUpload={() => setCurrentTab('documents')}
               onOpenCreateInvoice={() => {
                 setCurrentTab('invoices');
                 setCreateInvoiceOpen(true);
@@ -130,12 +155,17 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'ai-documents' && (
-            <AIDocumentCenter
+          {currentTab === 'documents' && (
+            <DocumentsView
               extractions={extractions}
+              documents={documents}
               suppliers={suppliers}
               customers={customers}
+              invoices={invoices}
+              profile={profile}
               onRefresh={fetchAllData}
+              createInvoiceOpen={createInvoiceOpen}
+              setCreateInvoiceOpen={setCreateInvoiceOpen}
             />
           )}
 
@@ -179,6 +209,30 @@ export default function App() {
             <ExpensesView
               expenses={expenses}
               customers={customers}
+              onRefresh={fetchAllData}
+            />
+          )}
+
+          {currentTab === 'purchase-orders' && (
+            <PurchaseOrdersView
+              purchaseOrders={purchaseOrders}
+              suppliers={suppliers}
+              profile={profile}
+              onRefresh={fetchAllData}
+            />
+          )}
+
+          {currentTab === 'approvals' && (
+            <ApprovalsView onRefresh={fetchAllData} />
+          )}
+
+          {currentTab === 'payments' && (
+            <PaymentsView
+              payments={payments}
+              customers={customers}
+              suppliers={suppliers}
+              invoices={invoices}
+              purchaseBills={purchaseBills}
               onRefresh={fetchAllData}
             />
           )}

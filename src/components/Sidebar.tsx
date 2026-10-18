@@ -7,6 +7,8 @@ import {
   Building2,
   Users,
   Receipt,
+  FileCheck2,
+  CreditCard,
   Calculator,
   BarChart3,
   Sliders,
@@ -18,12 +20,15 @@ import { BusinessProfile } from '../types/index.ts';
 
 export type NavTab =
   | 'dashboard'
-  | 'ai-documents'
+  | 'documents'
   | 'invoices'
   | 'purchase-bills'
-  | 'suppliers'
   | 'customers'
+  | 'suppliers'
   | 'expenses'
+  | 'purchase-orders'
+  | 'approvals'
+  | 'payments'
   | 'gst'
   | 'reports'
   | 'automations'
@@ -34,7 +39,9 @@ interface SidebarProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   pendingReviewsCount: number;
-  unpaidInvoicesCount: number;
+  pendingApprovalsCount?: number;
+  unpaidCount?: number;
+  unpaidInvoicesCount?: number;
   profile: BusinessProfile | null;
 }
 
@@ -42,34 +49,89 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
   pendingReviewsCount,
+  pendingApprovalsCount = 0,
+  unpaidCount,
   unpaidInvoicesCount,
   profile,
 }) => {
-  const navItems = [
-    { id: 'dashboard' as NavTab, label: 'Dashboard', icon: LayoutDashboard },
+  const displayUnpaid = unpaidCount ?? unpaidInvoicesCount ?? 0;
+
+  const coreNavItems = [
     {
-      id: 'ai-documents' as NavTab,
-      label: 'AI Document Center',
-      icon: Sparkles,
-      badge: pendingReviewsCount > 0 ? `${pendingReviewsCount} Review` : 'AI',
-      badgeColor: pendingReviewsCount > 0 ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white animate-pulse',
+      id: 'dashboard' as NavTab,
+      label: 'Overview',
+      icon: LayoutDashboard,
     },
     {
-      id: 'invoices' as NavTab,
-      label: 'Sales Invoices',
+      id: 'documents' as NavTab,
+      label: 'Invoices / Documents',
       icon: FileText,
-      badge: unpaidInvoicesCount > 0 ? `${unpaidInvoicesCount}` : undefined,
+      badge: pendingReviewsCount > 0 ? `${pendingReviewsCount}` : 'AI',
+      badgeColor: pendingReviewsCount > 0 ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white',
+    },
+    {
+      id: 'suppliers' as NavTab,
+      label: 'Vendors',
+      icon: Building2,
+    },
+    {
+      id: 'customers' as NavTab,
+      label: 'Customers',
+      icon: Users,
+    },
+    {
+      id: 'expenses' as NavTab,
+      label: 'Expenses',
+      icon: Receipt,
+    },
+    {
+      id: 'purchase-orders' as NavTab,
+      label: 'Purchase Orders',
+      icon: ShoppingBag,
+    },
+    {
+      id: 'approvals' as NavTab,
+      label: 'Approvals',
+      icon: FileCheck2,
+      badge: pendingApprovalsCount > 0 ? `${pendingApprovalsCount} Pending` : undefined,
       badgeColor: 'bg-rose-500 text-white',
     },
-    { id: 'purchase-bills' as NavTab, label: 'Purchase Bills', icon: ShoppingBag },
-    { id: 'suppliers' as NavTab, label: 'Vendors (Suppliers)', icon: Building2 },
-    { id: 'customers' as NavTab, label: 'Customers', icon: Users },
-    { id: 'expenses' as NavTab, label: 'Expenses', icon: Receipt },
-    { id: 'gst' as NavTab, label: 'GST Intelligence', icon: Calculator, tag: 'GSTR-1/3B' },
-    { id: 'reports' as NavTab, label: 'Reports & Analytics', icon: BarChart3 },
-    { id: 'automations' as NavTab, label: 'Automations', icon: Sliders },
-    { id: 'integrations' as NavTab, label: 'Integrations', icon: Share2, tag: 'Tally' },
-    { id: 'settings' as NavTab, label: 'Business Profile', icon: Settings },
+    {
+      id: 'payments' as NavTab,
+      label: 'Payments',
+      icon: CreditCard,
+      badge: displayUnpaid > 0 ? `${displayUnpaid}` : undefined,
+      badgeColor: 'bg-slate-700 text-slate-200',
+    },
+  ];
+
+  const complianceNavItems = [
+    {
+      id: 'gst' as NavTab,
+      label: 'GST & Compliance',
+      icon: Calculator,
+      tag: 'GSTR-1/3B',
+    },
+    {
+      id: 'reports' as NavTab,
+      label: 'Analytics',
+      icon: BarChart3,
+    },
+    {
+      id: 'automations' as NavTab,
+      label: 'Automations',
+      icon: Sliders,
+    },
+    {
+      id: 'integrations' as NavTab,
+      label: 'Sync & Exports',
+      icon: Share2,
+    },
+    {
+      id: 'settings' as NavTab,
+      label: 'Settings',
+      icon: Settings,
+    },
   ];
 
   return (
@@ -84,10 +146,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex items-center gap-1.5">
               <h1 className="text-lg font-bold tracking-tight text-white">Ozio</h1>
               <span className="text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-400/30">
-                PRO
+                FINANCE OS
               </span>
             </div>
-            <p className="text-xs text-slate-400">Financial Operations</p>
+            <p className="text-xs text-slate-400">AI Financial Operations</p>
           </div>
         </div>
       </div>
@@ -95,9 +157,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
         <div className="px-3 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-          Core Operations
+          Core Workflows
         </div>
-        {navItems.slice(0, 7).map((item) => {
+        {coreNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
           return (
@@ -124,9 +186,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
 
         <div className="pt-4 px-3 pb-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-          Compliance & Intelligence
+          Tax & Intelligence
         </div>
-        {navItems.slice(7).map((item) => {
+        {complianceNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
           return (

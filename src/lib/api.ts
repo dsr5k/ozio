@@ -11,6 +11,10 @@ import {
   DocumentExtraction,
   DashboardStats,
   GSTSummary,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  PaymentRecord,
+  ApprovalRequest,
 } from '../types/index.ts';
 
 const BASE_URL = '/api';
@@ -129,7 +133,46 @@ export const api = {
         body: JSON.stringify({ overrides }),
       }
     ),
+  getDocuments: () => request<StoredDocument[]>('/documents'),
 
   // GST
   getGSTSummary: () => request<GSTSummary>('/gst/summary'),
+
+  // Purchase Orders
+  getPurchaseOrders: () => request<PurchaseOrder[]>('/purchase-orders'),
+  createPurchaseOrder: (
+    po: Omit<PurchaseOrder, 'id' | 'user_id' | 'created_at' | 'supplier' | 'items'>,
+    items: Array<Omit<PurchaseOrderItem, 'id' | 'purchase_order_id' | 'created_at'>>
+  ) =>
+    request<PurchaseOrder>('/purchase-orders', {
+      method: 'POST',
+      body: JSON.stringify({ ...po, items }),
+    }),
+  updatePurchaseOrderStatus: (id: string, status: string) =>
+    request<PurchaseOrder>(`/purchase-orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+  deletePurchaseOrder: (id: string) => request<{ success: boolean }>(`/purchase-orders/${id}`, { method: 'DELETE' }),
+
+  // Payments Ledger
+  getPayments: () => request<PaymentRecord[]>('/payments'),
+  createPayment: (data: Omit<PaymentRecord, 'id' | 'user_id' | 'created_at'>) =>
+    request<PaymentRecord>('/payments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  reconcilePayment: (id: string) =>
+    request<PaymentRecord>(`/payments/${id}/reconcile`, {
+      method: 'PUT',
+    }),
+  deletePayment: (id: string) => request<{ success: boolean }>(`/payments/${id}`, { method: 'DELETE' }),
+
+  // Approvals Inbox
+  getApprovals: () => request<ApprovalRequest[]>('/approvals'),
+  performApprovalAction: (action: 'approve' | 'reject', entityType: string, entityId: string, reason?: string) =>
+    request<{ success: boolean; message: string }>('/approvals/action', {
+      method: 'POST',
+      body: JSON.stringify({ action, entityType, entityId, reason }),
+    }),
 };

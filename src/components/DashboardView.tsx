@@ -63,7 +63,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <button
-            onClick={() => onNavigate('ai-documents')}
+            onClick={() => onNavigate('documents')}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
           >
             Review Queue →

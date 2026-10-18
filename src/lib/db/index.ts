@@ -16,6 +16,10 @@ import {
   DashboardStats,
   GSTSummary,
   ActivityItem,
+  PurchaseOrder,
+  PurchaseOrderItem,
+  PaymentRecord,
+  ApprovalRequest,
 } from '../../types/index.ts';
 import { calculateItemTax, isInterStateTransaction } from '../gst.ts';
 
@@ -32,6 +36,9 @@ interface DatabaseStore {
   purchase_bill_items: PurchaseBillItem[];
   bill_duplicate_checks: BillDuplicateCheck[];
   expenses: Expense[];
+  purchase_orders: PurchaseOrder[];
+  purchase_order_items: PurchaseOrderItem[];
+  payments: PaymentRecord[];
   stored_documents: StoredDocument[];
   document_extractions: DocumentExtraction[];
   activities: ActivityItem[];
@@ -435,6 +442,114 @@ const INITIAL_BILL_DUP_CHECKS: BillDuplicateCheck[] = [
   },
 ];
 
+const INITIAL_PURCHASE_ORDERS: PurchaseOrder[] = [
+  {
+    id: 'po-101',
+    user_id: DEFAULT_USER_ID,
+    supplier_id: 'supp-201',
+    po_number: 'PO-2026-089',
+    po_date: '2026-03-01',
+    delivery_date: '2026-03-05',
+    taxable_amount: 64000,
+    cgst_amount: 0,
+    sgst_amount: 0,
+    igst_amount: 11520,
+    total_tax: 11520,
+    total_amount: 75520,
+    status: 'billed',
+    matched_purchase_bill_id: 'pb-101',
+    notes: 'Q1 Cloud Hosting & Data Compute Reserve',
+    created_at: '2026-03-01T09:00:00Z',
+  },
+  {
+    id: 'po-102',
+    user_id: DEFAULT_USER_ID,
+    supplier_id: 'supp-202',
+    po_number: 'PO-2026-092',
+    po_date: '2026-04-08',
+    delivery_date: '2026-04-15',
+    taxable_amount: 195000,
+    cgst_amount: 17550,
+    sgst_amount: 17550,
+    igst_amount: 0,
+    total_tax: 35100,
+    total_amount: 230100,
+    status: 'issued',
+    notes: 'High-Performance Workstation Deployment for Engineering Core',
+    created_at: '2026-04-08T10:00:00Z',
+  },
+];
+
+const INITIAL_PURCHASE_ORDER_ITEMS: PurchaseOrderItem[] = [
+  {
+    id: 'poi-001',
+    purchase_order_id: 'po-101',
+    description: 'AWS EC2 + S3 Storage Cloud Infrastructure',
+    hsn_sac: '998315',
+    quantity: 1,
+    unit: 'NOS',
+    unit_price: 64000,
+    taxable_value: 64000,
+    gst_rate: 18,
+    cgst_amount: 0,
+    sgst_amount: 0,
+    igst_amount: 11520,
+    total_amount: 75520,
+    created_at: '2026-03-01T09:00:00Z',
+  },
+  {
+    id: 'poi-002',
+    purchase_order_id: 'po-102',
+    description: 'Apple MacBook Pro 16-inch M3 Max (36GB RAM, 1TB SSD)',
+    hsn_sac: '84713010',
+    quantity: 1,
+    unit: 'NOS',
+    unit_price: 195000,
+    taxable_value: 195000,
+    gst_rate: 18,
+    cgst_amount: 17550,
+    sgst_amount: 17550,
+    igst_amount: 0,
+    total_amount: 230100,
+    created_at: '2026-04-08T10:00:00Z',
+  },
+];
+
+const INITIAL_PAYMENTS: PaymentRecord[] = [
+  {
+    id: 'pay-001',
+    user_id: DEFAULT_USER_ID,
+    payment_date: '2026-03-12',
+    type: 'inflow',
+    amount: 212400,
+    counterparty_name: 'Reliance Retail Ventures Ltd',
+    counterparty_type: 'customer',
+    counterparty_id: 'cust-101',
+    invoice_id: 'inv-001',
+    reference_number: 'HDFCR520260312009214',
+    payment_method: 'NEFT/RTGS',
+    status: 'reconciled',
+    notes: 'Invoice APX-2026-001 settlement',
+    created_at: '2026-03-12T16:00:00Z',
+  },
+  {
+    id: 'pay-002',
+    user_id: DEFAULT_USER_ID,
+    payment_date: '2026-03-15',
+    type: 'outflow',
+    amount: 75520,
+    counterparty_name: 'Amazon Web Services India Pvt Ltd',
+    counterparty_type: 'supplier',
+    counterparty_id: 'supp-201',
+    purchase_bill_id: 'pb-101',
+    reference_number: 'HDFCP920260315772184',
+    payment_method: 'Corporate Card',
+    status: 'reconciled',
+    notes: 'Payment for Bill AWS-IN-98214',
+    created_at: '2026-03-15T11:00:00Z',
+  },
+];
+
 const INITIAL_DOCUMENTS: StoredDocument[] = [
   {
     id: 'doc-001',
@@ -564,7 +679,11 @@ class DatabaseManager {
       }
       if (fs.existsSync(DATA_FILE)) {
         const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (!parsed.purchase_orders) parsed.purchase_orders = INITIAL_PURCHASE_ORDERS;
+        if (!parsed.purchase_order_items) parsed.purchase_order_items = INITIAL_PURCHASE_ORDER_ITEMS;
+        if (!parsed.payments) parsed.payments = INITIAL_PAYMENTS;
+        return parsed;
       }
     } catch (e) {
       console.warn('Could not read existing db file, initializing with seeds:', e);
@@ -580,6 +699,9 @@ class DatabaseManager {
       purchase_bill_items: INITIAL_PURCHASE_BILL_ITEMS,
       bill_duplicate_checks: INITIAL_BILL_DUP_CHECKS,
       expenses: INITIAL_EXPENSES,
+      purchase_orders: INITIAL_PURCHASE_ORDERS,
+      purchase_order_items: INITIAL_PURCHASE_ORDER_ITEMS,
+      payments: INITIAL_PAYMENTS,
       stored_documents: INITIAL_DOCUMENTS,
       document_extractions: INITIAL_EXTRACTIONS,
       activities: INITIAL_ACTIVITIES,
@@ -1454,6 +1576,280 @@ class DatabaseManager {
       netTaxPayable,
       hsnSummary: Array.from(hsnMap.values()),
     };
+  }
+
+  // ==========================================
+  // Purchase Orders (Finance OS Workflows)
+  // ==========================================
+  getPurchaseOrders(): PurchaseOrder[] {
+    return this.data.purchase_orders.map((po) => {
+      const supplier = this.getSupplierById(po.supplier_id);
+      const items = this.data.purchase_order_items.filter((it) => it.purchase_order_id === po.id);
+      return {
+        ...po,
+        supplier,
+        items,
+      };
+    }).sort((a, b) => new Date(b.po_date).getTime() - new Date(a.po_date).getTime());
+  }
+
+  getPurchaseOrderById(id: string): PurchaseOrder | null {
+    const po = this.data.purchase_orders.find((p) => p.id === id);
+    if (!po) return null;
+    const supplier = this.getSupplierById(po.supplier_id);
+    const items = this.data.purchase_order_items.filter((it) => it.purchase_order_id === po.id);
+    return {
+      ...po,
+      supplier,
+      items,
+    };
+  }
+
+  createPurchaseOrderWithItems(
+    poData: Omit<PurchaseOrder, 'id' | 'user_id' | 'created_at' | 'supplier' | 'items'>,
+    itemsData: Array<Omit<PurchaseOrderItem, 'id' | 'purchase_order_id' | 'created_at'>>
+  ): PurchaseOrder {
+    const supplier = this.getSupplierById(poData.supplier_id);
+    if (!supplier) throw new Error(`Supplier with ID ${poData.supplier_id} not found.`);
+
+    const poId = `po-${Date.now()}`;
+    const createdItems: PurchaseOrderItem[] = itemsData.map((it, idx) => ({
+      id: `poi-${Date.now()}-${idx}`,
+      purchase_order_id: poId,
+      description: it.description,
+      hsn_sac: it.hsn_sac || '',
+      quantity: it.quantity,
+      unit: it.unit || 'NOS',
+      unit_price: it.unit_price,
+      taxable_value: it.taxable_value,
+      gst_rate: it.gst_rate,
+      cgst_amount: it.cgst_amount,
+      sgst_amount: it.sgst_amount,
+      igst_amount: it.igst_amount,
+      total_amount: it.total_amount,
+      created_at: new Date().toISOString(),
+    }));
+
+    const newPO: PurchaseOrder = {
+      ...poData,
+      id: poId,
+      user_id: DEFAULT_USER_ID,
+      created_at: new Date().toISOString(),
+    };
+
+    this.data.purchase_orders.push(newPO);
+    this.data.purchase_order_items.push(...createdItems);
+
+    this.addActivity({
+      id: `act-${Date.now()}`,
+      type: 'bill_processed',
+      title: `Purchase Order ${newPO.po_number} Issued`,
+      description: `Issued to ${supplier.name} for ₹${newPO.total_amount.toLocaleString('en-IN')}`,
+      amount: newPO.total_amount,
+      date: newPO.created_at,
+      status: newPO.status,
+    });
+
+    this.persist();
+    return {
+      ...newPO,
+      supplier,
+      items: createdItems,
+    };
+  }
+
+  updatePurchaseOrderStatus(id: string, status: any): PurchaseOrder | null {
+    const po = this.data.purchase_orders.find((p) => p.id === id);
+    if (!po) return null;
+    po.status = status;
+    po.updated_at = new Date().toISOString();
+    this.persist();
+    return this.getPurchaseOrderById(id);
+  }
+
+  deletePurchaseOrder(id: string): boolean {
+    this.data.purchase_orders = this.data.purchase_orders.filter((p) => p.id !== id);
+    this.data.purchase_order_items = this.data.purchase_order_items.filter((it) => it.purchase_order_id !== id);
+    this.persist();
+    return true;
+  }
+
+  // ==========================================
+  // Payments Ledger (Finance OS Workflows)
+  // ==========================================
+  getPayments(): PaymentRecord[] {
+    return [...this.data.payments].sort(
+      (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+    );
+  }
+
+  createPayment(payload: Omit<PaymentRecord, 'id' | 'user_id' | 'created_at'>): PaymentRecord {
+    const payment: PaymentRecord = {
+      id: `pay-${Date.now()}`,
+      user_id: DEFAULT_USER_ID,
+      ...payload,
+      created_at: new Date().toISOString(),
+    };
+
+    this.data.payments.unshift(payment);
+
+    // If linked to an invoice, update invoice amount_paid
+    if (payment.invoice_id) {
+      const inv = this.data.invoices.find((i) => i.id === payment.invoice_id);
+      if (inv) {
+        inv.amount_paid = (inv.amount_paid || 0) + payment.amount;
+        if (inv.amount_paid >= inv.total_amount) inv.status = 'paid';
+        else inv.status = 'partially_paid';
+        inv.updated_at = new Date().toISOString();
+      }
+    }
+
+    // If linked to a purchase bill, update purchase bill amount_paid
+    if (payment.purchase_bill_id) {
+      const pb = this.data.purchase_bills.find((b) => b.id === payment.purchase_bill_id);
+      if (pb) {
+        pb.amount_paid = (pb.amount_paid || 0) + payment.amount;
+        if (pb.amount_paid >= pb.total_amount) pb.status = 'paid';
+        pb.updated_at = new Date().toISOString();
+      }
+    }
+
+    this.addActivity({
+      id: `act-${Date.now()}`,
+      type: payment.type === 'inflow' ? 'payment_received' : 'expense_added',
+      title: payment.type === 'inflow' ? `Inflow: ${payment.counterparty_name}` : `Outflow: ${payment.counterparty_name}`,
+      description: `Payment of ₹${payment.amount.toLocaleString('en-IN')} via ${payment.payment_method} (${payment.reference_number})`,
+      amount: payment.amount,
+      date: payment.payment_date,
+      status: payment.status,
+    });
+
+    this.persist();
+    return payment;
+  }
+
+  reconcilePayment(id: string): PaymentRecord | null {
+    const p = this.data.payments.find((pay) => pay.id === id);
+    if (!p) return null;
+    p.status = 'reconciled';
+    this.persist();
+    return p;
+  }
+
+  deletePayment(id: string): boolean {
+    this.data.payments = this.data.payments.filter((p) => p.id !== id);
+    this.persist();
+    return true;
+  }
+
+  // ==========================================
+  // Approvals Inbox (Finance OS Workflows)
+  // ==========================================
+  getApprovals(): ApprovalRequest[] {
+    const list: ApprovalRequest[] = [];
+
+    // 1. Pending document extractions
+    for (const ext of this.data.document_extractions) {
+      if (ext.status === 'pending_review') {
+        list.push({
+          id: `appr-ext-${ext.id}`,
+          title: `AI Extraction Verification: ${ext.party_name || 'Document'}`,
+          entity_type: 'document_extraction',
+          entity_id: ext.id,
+          amount: ext.total_amount,
+          counterparty_name: ext.party_name || 'Vendor',
+          requested_date: ext.invoice_date || ext.created_at.split('T')[0],
+          requested_by: 'AI Ingestion Engine (Gemini 3.8)',
+          reason: `Confidence score ${ext.confidence_score.toFixed(1)}% is below 85% verification threshold`,
+          status: 'pending',
+          confidence_score: ext.confidence_score,
+        });
+      }
+    }
+
+    // 2. High-value purchase bills (> ₹50,000 or status pending_approval)
+    for (const bill of this.data.purchase_bills) {
+      if (bill.status === 'pending_approval' || (bill.total_amount >= 50000 && bill.status === 'unpaid' && (bill.amount_paid || 0) === 0)) {
+        const supp = this.getSupplierById(bill.supplier_id);
+        list.push({
+          id: `appr-bill-${bill.id}`,
+          title: `Purchase Bill Dual-Signoff: ${bill.bill_number}`,
+          entity_type: 'purchase_bill',
+          entity_id: bill.id,
+          amount: bill.total_amount,
+          counterparty_name: supp?.name || 'Vendor',
+          requested_date: bill.bill_date,
+          requested_by: 'Procurement Department',
+          reason: `Bill value of ₹${bill.total_amount.toLocaleString('en-IN')} exceeds standard ₹50,000 single-signer limit`,
+          status: 'pending',
+        });
+      }
+    }
+
+    // 3. Purchase Orders in draft or pending issue
+    for (const po of this.data.purchase_orders) {
+      if (po.status === 'draft') {
+        const supp = this.getSupplierById(po.supplier_id);
+        list.push({
+          id: `appr-po-${po.id}`,
+          title: `Purchase Order Authorization: ${po.po_number}`,
+          entity_type: 'purchase_order',
+          entity_id: po.id,
+          amount: po.total_amount,
+          counterparty_name: supp?.name || 'Vendor',
+          requested_date: po.po_date,
+          requested_by: 'Inventory Manager',
+          reason: 'Draft PO awaiting manager authorization prior to supplier dispatch',
+          status: 'pending',
+        });
+      }
+    }
+
+    return list;
+  }
+
+  approveRequest(entityType: string, entityId: string): boolean {
+    if (entityType === 'document_extraction') {
+      this.postExtractionToLedger(entityId);
+    } else if (entityType === 'purchase_bill') {
+      const pb = this.data.purchase_bills.find((b) => b.id === entityId);
+      if (pb) {
+        pb.status = 'approved';
+        pb.updated_at = new Date().toISOString();
+      }
+    } else if (entityType === 'purchase_order') {
+      const po = this.data.purchase_orders.find((p) => p.id === entityId);
+      if (po) {
+        po.status = 'issued';
+        po.updated_at = new Date().toISOString();
+      }
+    }
+    this.persist();
+    return true;
+  }
+
+  rejectRequest(entityType: string, entityId: string, reason: string): boolean {
+    if (entityType === 'document_extraction') {
+      const ext = this.data.document_extractions.find((e) => e.id === entityId);
+      if (ext) {
+        ext.status = 'pending_review';
+        ext.validation_flags.push(`REJECTED by Approver: ${reason}`);
+      }
+    } else if (entityType === 'purchase_bill') {
+      const pb = this.data.purchase_bills.find((b) => b.id === entityId);
+      if (pb) {
+        pb.status = 'draft';
+        pb.notes = (pb.notes || '') + ` [Rejected: ${reason}]`;
+      }
+    } else if (entityType === 'purchase_order') {
+      const po = this.data.purchase_orders.find((p) => p.id === entityId);
+      if (po) {
+        po.status = 'cancelled';
+        po.notes = (po.notes || '') + ` [Cancelled: ${reason}]`;
+      }
+    }
+    this.persist();
+    return true;
   }
 }
 

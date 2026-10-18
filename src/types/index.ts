@@ -296,3 +296,90 @@ export interface GSTSummary {
     totalTax: number;
   }[];
 }
+
+export interface PurchaseOrderItem {
+  id: string;
+  purchase_order_id: string;
+  description: string;
+  hsn_sac: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  taxable_value: number;
+  gst_rate: number;
+  cgst_amount: number;
+  sgst_amount: number;
+  igst_amount: number;
+  total_amount: number;
+  created_at?: string;
+}
+
+export type PurchaseOrderStatus = 'draft' | 'issued' | 'received' | 'billed' | 'cancelled';
+
+export interface PurchaseOrder {
+  id: string;
+  user_id: string;
+  supplier_id: string;
+  po_number: string;
+  po_date: string;
+  delivery_date?: string;
+  taxable_amount: number;
+  cgst_amount: number;
+  sgst_amount: number;
+  igst_amount: number;
+  total_tax: number;
+  total_amount: number;
+  status: PurchaseOrderStatus;
+  notes?: string;
+  matched_purchase_bill_id?: string;
+  created_at: string;
+  updated_at?: string;
+  supplier?: Supplier;
+  items?: PurchaseOrderItem[];
+}
+
+export type PaymentType = 'inflow' | 'outflow';
+export type PaymentStatus = 'completed' | 'reconciled' | 'pending';
+
+export interface PaymentRecord {
+  id: string;
+  user_id: string;
+  payment_date: string;
+  type: PaymentType;
+  amount: number;
+  counterparty_name: string;
+  counterparty_type: 'customer' | 'supplier';
+  counterparty_id: string;
+  invoice_id?: string;
+  purchase_bill_id?: string;
+  reference_number: string; // UTR / Cheque / Bank Txn ID
+  payment_method: 'NEFT/RTGS' | 'UPI' | 'Corporate Card' | 'Cheque' | 'Net Banking';
+  status: PaymentStatus;
+  notes?: string;
+  created_at: string;
+}
+
+export interface AnomalyReport {
+  id: string;
+  type: 'tax_rate_anomaly' | 'price_deviation' | 'state_mismatch' | 'duplicate_warning' | 'threshold_exceeded' | 'missing_hsn';
+  severity: 'critical' | 'warning' | 'info';
+  message: string;
+  field?: string;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  title: string;
+  entity_type: 'purchase_bill' | 'document_extraction' | 'expense' | 'purchase_order';
+  entity_id: string;
+  amount: number;
+  counterparty_name: string;
+  requested_date: string;
+  requested_by: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
+  confidence_score?: number;
+  anomalies?: AnomalyReport[];
+}
+
